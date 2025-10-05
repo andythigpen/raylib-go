@@ -53,6 +53,7 @@
 #include <termios.h> // POSIX terminal control definitions - tcgetattr(), tcsetattr()
 #include <pthread.h> // POSIX threads management (inputs reading)
 #include <dirent.h>  // POSIX directory browsing
+#include <errno.h>
 
 #include <sys/ioctl.h>      // Required for: ioctl() - UNIX System call for device-specific input/output operations
 #include <linux/kd.h>       // Linux: KDSKBMODE, K_MEDIUMRAM constants definition
@@ -1951,6 +1952,51 @@ static int FindNearestConnectorMode(const drmModeConnector *connector, uint widt
     }
 
     return nearestIndex;
+}
+
+int32_t GetDrmConnectorPropertyValue(uint32_t property_id, uint64_t *property_value)
+{
+    if (platform.fd == -1 || platform.connector == NULL) {
+        TRACELOG(LOG_WARNING, "DISPLAY: Cannot get connector property - platform not initialized");
+        return -1;
+    }
+
+    drmModeObjectPropertiesPtr props = drmModeObjectGetProperties(platform.fd, platform.connector->connector_id, DRM_MODE_OBJECT_CONNECTOR);
+    if (props == NULL) {
+        TRACELOG(LOG_WARNING, "DISPLAY: Failed to get DRM object properties");
+        return -1;
+    }
+    uint64_t ret = -1;
+    for (unsigned int i = 0; i < props->count_props; ++i) {
+        drmModePropertyPtr prop = drmModeGetProperty(platform.fd, props->props[i]);
+        if (!prop) {
+            continue;
+        }
+        if (prop->prop_id == property_id) {
+            *property_value = props->prop_values[i];
+            ret = 0;
+        }
+        drmModeFreeProperty(prop);
+        if (prop->prop_id == property_id) {
+            break;
+        }
+    }
+    drmModeFreeObjectProperties(props);
+
+    return ret;
+}
+
+int SetDrmConnectorProperty(uint32_t property_id, uint64_t property_value)
+{
+    if (platform.fd == -1 || platform.connector == NULL) {
+        TRACELOG(LOG_WARNING, "DISPLAY: Cannot set connector property - platform not initialized");
+        return -1;
+    }
+    int ret = drmModeObjectSetProperty(platform.fd, platform.connector->connector_id, DRM_MODE_OBJECT_CONNECTOR, property_id, property_value);
+    if (ret < 0) {
+        TRACELOG(LOG_WARNING, "DISPLAY: SetDrmConnectorProperty failed errno=%d", errno);
+    }
+    return ret;
 }
 
 // EOF

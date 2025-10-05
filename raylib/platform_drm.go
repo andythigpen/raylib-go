@@ -6,13 +6,19 @@ package rl
 /*
 #include "raylib.h"
 #include <stdlib.h>
+#include <stdint.h>
+
+extern int GetDrmConnectorPropertyValue(uint32_t property_id, uint64_t *property_value);
+extern int SetDrmConnectorProperty(uint32_t property_id, uint64_t property_value);
 */
 import "C"
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"unsafe"
 )
 
 // SetMain - Sets callback function
@@ -127,4 +133,21 @@ func readAssetDir(root, name string) ([]fs.DirEntry, error) {
 	}
 
 	return os.ReadDir(fullPath)
+}
+
+func SetDrmConnectorProperty(id uint32, val uint64) error {
+	ret := C.SetDrmConnectorProperty(C.uint(id), C.ulong(val))
+	if ret < 0 {
+		return fmt.Errorf("failed to set property value %u", id)
+	}
+	return nil
+}
+
+func GetDrmConnectorPropertyValue(id uint32) (uint64, error) {
+	val := uint64(0)
+	ret := C.GetDrmConnectorPropertyValue(C.uint(id), (*C.ulong)(unsafe.Pointer(&val)))
+	if ret < 0 {
+		return val, fmt.Errorf("failed to get property value %u", id)
+	}
+	return val, nil
 }
